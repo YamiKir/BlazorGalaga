@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="..\build\BlazorGalaga.props" />
+</Project>

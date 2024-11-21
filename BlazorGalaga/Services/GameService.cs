@@ -20,8 +20,21 @@ using static BlazorGalaga.Pages.Index;
 
 namespace BlazorGalaga.Services
 {
+
+    public class GameState 
+    {
+        public Point PlayerPosition {get; set;}
+        public List<Point> EnemyPositions {get; set;}
+        public List<Point> BulletPositions  {get; set;}
+        public int Score {get; set;}
+        public int Lives {get; set;}       
+    }
+
+
     public partial class GameService
     {
+        private AIController aiController = new AIController();
+
         #region Vars
 
         public AnimationService animationService { get; set; }
@@ -70,6 +83,68 @@ namespace BlazorGalaga.Services
             ShipManager.InitShip(animationService);
             SoundManager.OnEnd += SoundManager_OnEnd; 
         }
+        public GameState GetGameState()
+        {
+            var bugs = GetBugs();
+            var bullets = animationService.Animatables
+                .Where(a => a.Sprite != null && a.Sprite.SpriteType == Sprite.SpriteTypes.BugMissle)
+                .Select(a => new Point((int)a.Location.X, (int)a.Location.Y))
+                .ToList();
+
+
+            return new GameState
+            {
+                PlayerPosition = new Point((int)Ship.Location.X, (int)Ship.Location.Y),
+                EnemyPositions = bugs.Select(b => new Point((int)b.Location.X, (int)b.Location.Y)).ToList(),
+                BulletPositions = bullets,
+                Score = Score,
+                Lives = Lives
+            };
+        }
+
+        public void UpdateGameWithAI()
+        {
+            GameState currentState = GetGameState();
+            string action = aiController.DecideAction(currentState);
+
+            Console.WriteLine($"Ship Position Before: {Ship.Location.X}, Action: {action}");
+
+            switch (action)
+            {
+                case "MOVE_LEFT":
+                    if (Ship.Location.X > Constants.ShipMoveSpeed) // Check left boundary
+                    {
+                        Ship.Location = new PointF(Ship.Location.X - Constants.ShipMoveSpeed, Ship.Location.Y);
+                        Console.WriteLine($"Ship moved LEFT to {Ship.Location.X}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Ship at Left Boundary. Cannot Move Left.");
+                    }
+                    break;
+                case "MOVE_RIGHT":
+                    if (Ship.Location.X < Constants.CanvasSize.Width - Constants.ShipMoveSpeed) // Check right boundary
+                    {
+                        Ship.Location = new PointF(Ship.Location.X + Constants.ShipMoveSpeed, Ship.Location.Y);
+                        Console.WriteLine($"Ship moved RIGHT to {Ship.Location.X}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Ship at Right Boundary. Cannot Move Right.");
+                    }
+                    break;
+                case "SHOOT":
+                    Ship.IsFiring = true;
+                    Console.WriteLine("Ship fired.");
+                    break;
+                default:
+                    Console.WriteLine("No movement action taken.");
+                    break;
+            }
+
+            Console.WriteLine($"Ship Position After: {Ship.Location.X}");
+        }
+
 
         private void InitVars()
         {
@@ -287,8 +362,10 @@ namespace BlazorGalaga.Services
             var bugs = GetBugs();
 
             //do AI if enabled for debugging
-            if (aion) AIManager.AI(bugs, animationService, Ship);
-
+            if (aion) 
+            {
+                UpdateGameWithAI();
+            }
             //dive the bugs
             if (timestamp - LastDiveTimeStamp > NextDiveWaitTime && EnemyGridManager.EnemyGridBreathing && !glo.editcurveschecked)
             {
